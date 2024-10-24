@@ -115,9 +115,9 @@ try:
     while start:
         for i in range (0,1):
             led.value(not led.value())
-            turn_drivetrain_left()  # Move forward 5 cm
+            turn_drivetrain_left() 
             time.sleep(1)  # Pause for 1 second
-            turn_drivetrain_right()  # Move backward 5 cm
+            turn_drivetrain_right() 
             time.sleep(1)  # Pause for 1 second
 
 finally:
