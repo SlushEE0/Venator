@@ -212,10 +212,7 @@ while True:
     if button.value() == 0:  # Button pressed (assuming active low)
         print("Button pressed, starting sequence...")
         # Example sequence of function calls
-        move_forward(30)
-        turn_right(90)
-        move_forward(-30)
-        turn_left(90)
+        move_forward(5)
         
         # Debounce delay
         time.sleep(1)
