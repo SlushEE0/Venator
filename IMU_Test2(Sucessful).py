@@ -26,4 +26,4 @@ print("BNO08x sensors enabling : Done\n")
 
 while True:
     R, T, P = bno.euler
-    print("Angle: %0.1f" % (P))
+    print("Angle: %0.10f" % (P))
