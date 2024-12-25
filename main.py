@@ -51,9 +51,9 @@ pwm_a.init(freq=5000, duty_ns=5000)
 pwm_b.init(freq=5000, duty_ns=5000)
 
 # PID Parameters
-Kp_speed = 0.0
-Ki_speed = 0.0
-Kd_speed = 0.0
+Kp_straight = 0.5
+Ki_straight = 0.0
+Kd_straight = 0.0
 Kp_distance = 0.0
 Ki_distance = 0.0
 Kd_distance = 0.0
@@ -69,32 +69,49 @@ button = Pin(22, Pin.IN, Pin.PULL_UP)
 def normalize_angle(angle):
     """Normalize an angle to the range [0, 360)."""
     return (angle+360) % 360
-min_speed=0.28
-max_speed=40
+
+min_speed=0.29
+max_turn_speed=0.4
 # Helper functions to control motor speed and direction
 def set_motor_speed_a(speed):
     # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
-    motor_speed=int(abs(speed) * 65535)
+    motor_speed_1=int(abs(speed) * 65535)
     if speed > 0:
         IN1.value(1)
         IN2.value(0)
     else:
         IN1.value(0)
         IN2.value(1)
-    pwm_a.duty_u16(motor_speed)
+    pwm_a.duty_u16(motor_speed_1)
 
 def set_motor_speed_b(speed):
     # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
-    motor_speed= int(abs(speed) * 65535)
+    motor_speed_2= int(abs(speed) * 65535)
     if speed > 0:
         IN3.value(1)
         IN4.value(0)
     else:
         IN3.value(0)
         IN4.value(1)
-    pwm_b.duty_u16(motor_speed)
-   
+    pwm_b.duty_u16(motor_speed_2)
+
+def calculate_motor_speed():
+    global motor_speed
+    turn_time = 3  # Time for a 90-degree turn (in seconds)
+    total_turn_time = turn_time * turn_num
+    remaining_time = target_time - total_turn_time
+    straight_time = 0.53  # Modify this based on your specific requirements
+    time_per_straight = remaining_time / straight_num
+    motor_speed = 50 * (straight_time / time_per_straight)
+
+    # Ensure motor speed does not exceed 100%
+    if motor_speed > 100:
+        motor_speed = 100
+        
+    return motor_speed
+
 def turn_left():
+    global target_yaw
     initial_yaw = normalize_angle(bno.euler[2])
     target_yaw = normalize_angle(initial_yaw + 90)
 
@@ -129,8 +146,8 @@ def turn_left():
                 speed_b = min_speed if speed_b > 0 else -min_speed
 
             # Optionally clamp speeds to max limits
-            speed_a = max(min(speed_a, max_speed), -max_speed)
-            speed_b = max(min(speed_b, max_speed), -max_speed)
+            speed_a = max(min(speed_a, max_turn_speed), -max_turn_speed)
+            speed_b = max(min(speed_b, max_turn_speed), -max_turn_speed)
 
         # Send speeds to motors
         set_motor_speed_a(speed_a)
@@ -145,10 +162,13 @@ def turn_left():
     
     set_motor_speed_a(0)
     set_motor_speed_b(0)
-    
+    return target_yaw
+    time.sleep(0.2)
+
 def turn_right():
+    global target_yaw
     initial_yaw = normalize_angle(bno.euler[2])
-    target_yaw = normalize_angle(initial_yaw)
+    target_yaw = normalize_angle(initial_yaw - 90)
 
     error_sum_turn = 0
     last_error_turn = 0
@@ -181,8 +201,8 @@ def turn_right():
                 speed_b = min_speed if speed_b > 0 else -min_speed
 
             # Optionally clamp speeds to max limits
-            speed_a = max(min(speed_a, max_speed), -max_speed)
-            speed_b = max(min(speed_b, max_speed), -max_speed)
+            speed_a = max(min(speed_a, max_turn_speed), -max_turn_speed)
+            speed_b = max(min(speed_b, max_turn_speed), -max_turn_speed)
 
         # Send speeds to motors
         set_motor_speed_a(speed_a)
@@ -197,14 +217,74 @@ def turn_right():
     
     set_motor_speed_a(0)
     set_motor_speed_b(0)
+    return target_yaw
+    time.sleep(0.2)
+
+def forward():
+
+    error_sum_straight = 0
+    last_error_straight = 0
+
+    while True:
+        yaw = normalize_angle(bno.euler[2])
+        straight_error = target_yaw - yaw
+
+        # Normalize the turn error
+        if straight_error > 180:
+            straight_error -= 360
+        elif straight_error < -180:
+            straight_error += 360
+
+        # Turn PID calculations
+        P_straight = straight_error * Kp_straight
+        I_straight = error_sum_straight * Ki_straight
+        D_straight = (straight_error - last_error_straight) * Kd_straight
+        correction_straight = P_straight + I_straight + D_straight
+        
+        # Calculate motor speeds based on correction
+        speed_a = motor_speed + correction_straight
+        speed_b = motor_speed - correction_straight
+
+        # Apply minimum limits to avoid stalling
+        if abs(speed_a) > 0 and abs(speed_a) < min_speed:
+            speed_a = min_speed if speed_a > 0 else -min_speed
+        if abs(speed_b) > 0 and abs(speed_b) < min_speed:
+            speed_b = min_speed if speed_b > 0 else -min_speed
+
+        # Optionally clamp speeds to max limits
+        speed_a = max(min(speed_a, motor_speed), -motor_speed)
+        speed_b = max(min(speed_b, motor_speed), -motor_speed)
+
+        # Send speeds to motors
+        set_motor_speed_a(speed_a)
+        set_motor_speed_b(speed_b)
+
+        error_sum_straight += straight_error
+        last_error_straight = straight_error
+        
+        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
+        
+        # Short delay for stability
+        time.sleep(0.1)
+
 
 # Main loop to check for button press and execute commands
 while True:
     if button.value() == 0:  # Button pressed (assuming active low)
         print("Button pressed, starting sequence...")
         # Example sequence of function calls
-        turn_left()
-        #turn_right()
+        # Example usage
+        global target_time
+        global turn_num
+        global straight_num
+        target_time = 85
+        turn_num = 8
+        straight_num = 70
+        target_yaw = normalize_angle(bno.euler[2])
+        motor_speed = calculate_motor_speed()
+        #turn_left()
+        turn_right()
+        forward()
         
         # Debounce delay
         time.sleep(1)
