@@ -95,7 +95,7 @@ def set_motor_speed_b(speed):
         IN4.value(1)
     pwm_b.duty_u16(motor_speed_2)
 
-def calculate_motor_speed():
+def calculate_motor_speed(turn_num, straight_num, target_time):
     global motor_speed
     turn_time = 3  # Time for a 90-degree turn (in seconds)
     total_turn_time = turn_time * turn_num
@@ -274,14 +274,11 @@ while True:
         print("Button pressed, starting sequence...")
         # Example sequence of function calls
         # Example usage
-        global target_time
-        global turn_num
-        global straight_num
         target_time = 85
         turn_num = 8
         straight_num = 70
         target_yaw = normalize_angle(bno.euler[2])
-        motor_speed = calculate_motor_speed()
+        motor_speed = calculate_motor_speed(turn_num, straight_num, target_time)
         #turn_left()
         turn_right()
         forward()
