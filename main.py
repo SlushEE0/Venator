@@ -179,8 +179,8 @@ def turn_left():
     
     set_motor_speed_a(0)
     set_motor_speed_b(0)
-    return target_yaw
     time.sleep(0.2)
+    return target_yaw
 
 def turn_right():
     global target_yaw
@@ -234,8 +234,8 @@ def turn_right():
     
     set_motor_speed_a(0)
     set_motor_speed_b(0)
-    return target_yaw
     time.sleep(0.2)
+    return target_yaw
 
 def forward(segments):
 
@@ -288,9 +288,9 @@ def forward(segments):
         last_error_straight = straight_error
         
         print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}")
-        
-        # Short delay for stability
-        time.sleep(0.1)
+    set_motor_speed_a(0)
+    set_motor_speed_b(0)
+    time.sleep(0.2)
 
 # Main loop to check for button press and execute commands
 while True:
@@ -304,8 +304,8 @@ while True:
         target_yaw = normalize_angle(bno.euler[2])
         motor_speed = calculate_motor_speed(turn_num, straight_num, target_time)
         #turn_left()
-        turn_right()
-        #forward(1)
+        #turn_right()
+        forward(1)
         #turn_left()
         #forward(2)
         
