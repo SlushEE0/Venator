@@ -103,7 +103,7 @@ def set_motor_speed_a(speed):
 
 def set_motor_speed_b(speed):
     # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
-    motor_speed_2= int(abs(speed) * 2075)
+    motor_speed_2= int(abs(speed) * 65535)
     if speed > 0:
         IN3.value(1)
         IN4.value(0)
@@ -305,9 +305,9 @@ while True:
         motor_speed = calculate_motor_speed(turn_num, straight_num, target_time)
         #turn_left()
         turn_right()
-        forward(1)
-        turn_left()
-        forward(2)
+        #forward(1)
+        #turn_left()
+        #forward(2)
         
         # Debounce delay
         time.sleep(1)
