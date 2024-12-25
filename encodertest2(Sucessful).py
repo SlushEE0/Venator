@@ -42,4 +42,4 @@ encoder_b= Encoder(11,10)
 
 # Main loop
 while True:
-    print(f"Encoder A Position: {encoder_a.position()}")
+    print(f"Encoder A Position: {encoder_b.position()}")

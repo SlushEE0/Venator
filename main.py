@@ -9,33 +9,50 @@ I2C1_SCL = Pin(5)
 i2c1 = I2C(0, sda=I2C1_SDA, scl=I2C1_SCL, freq=400000, timeout=200000)
 bno = BNO08X_I2C(i2c1, debug=False)
 bno.enable_feature(BNO_REPORT_ROTATION_VECTOR)
-
-# Encoder Class
+leda = Pin(1, Pin.OUT) 
+ledb = Pin(6, Pin.OUT) 
+leda.value(1)  
+ledb.value(1)
 class Encoder:
     def __init__(self, pin_x, pin_y, reverse=False, scale=1):
         self.reverse = reverse
         self.scale = scale
+        self.forward = True
         self.pin_x = Pin(pin_x, Pin.IN, Pin.PULL_UP)
         self.pin_y = Pin(pin_y, Pin.IN, Pin.PULL_UP)
         self._pos = 0
-        self.x_interrupt = self.pin_x.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=self.callback)
-        self.y_interrupt = self.pin_y.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=self.callback)
+        try:
+            self.x_interrupt = self.pin_x.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=self.x_callback, hard=True)
+            self.y_interrupt = self.pin_y.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=self.y_callback, hard=True)
+        except TypeError:
+            self.x_interrupt = self.pin_x.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=self.x_callback)
+            self.y_interrupt = self.pin_y.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=self.y_callback)
 
-    def callback(self, pin):
-        if self.pin_x.value() ^ self.pin_y.value() ^ self.reverse:
-            self._pos += 1
-        else:
-            self._pos -= 1
+    def x_callback(self, pin):
+        self.forward = self.pin_x.value() ^ self.pin_y.value() ^ self.reverse
+        self._pos += 1 if self.forward else -1
 
-    def get_position(self):
-        return self._pos
+    def y_callback(self, pin):
+        self.forward = self.pin_x.value() ^ self.pin_y.value() ^ self.reverse ^ 1
+        self._pos += 1 if self.forward else -1
+
+    def position(self, value=None):
+        if value is not None:
+            self._pos = round(value / self.scale)
+        return self._pos * self.scale
 
     def reset(self):
         self._pos = 0
 
-# Initialize encoders
+    def value(self, value=None):
+        if value is not None:
+            self._pos = value
+        return self._pos
+
+# Motor A Encoder pins using GPIO 15 and 14
 encoder_a = Encoder(14, 15)
-encoder_b = Encoder(11, 10)
+encoder_b= Encoder(11,10)
+
 
 # Motor control pins
 ENA = Pin(16, Pin.OUT)
@@ -220,15 +237,23 @@ def turn_right():
     return target_yaw
     time.sleep(0.2)
 
-def forward():
+def forward(segments):
 
     error_sum_straight = 0
     last_error_straight = 0
+    encoder_a = Encoder(14, 15)
+    encoder_b= Encoder(11,10)
+    total_distance=segments*25
+    wheel_diameter=6
+    encoder_resolution=1440
+    wheel_circumference=math.pi*wheel_diameter
+    encoder_distance=(total_distance/wheel_circumference)*encoder_resolution
+    traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
 
-    while True:
+    while traveled_distance<encoder_distance:
         yaw = normalize_angle(bno.euler[2])
         straight_error = target_yaw - yaw
-
+        traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
         # Normalize the turn error
         if straight_error > 180:
             straight_error -= 360
@@ -262,11 +287,10 @@ def forward():
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
-        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
+        print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}")
         
         # Short delay for stability
         time.sleep(0.1)
-
 
 # Main loop to check for button press and execute commands
 while True:
@@ -281,7 +305,9 @@ while True:
         motor_speed = calculate_motor_speed(turn_num, straight_num, target_time)
         #turn_left()
         turn_right()
-        forward()
+        forward(1)
+        turn_left()
+        forward(2)
         
         # Debounce delay
         time.sleep(1)
