@@ -112,6 +112,17 @@ def set_motor_speed_b(speed):
         IN4.value(1)
     pwm_b.duty_u16(motor_speed_2)
 
+def set_motor_speed_b_straight(speed):
+    # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
+    motor_speed_2= int(abs(speed) * 2312)
+    if speed > 0:
+        IN3.value(1)
+        IN4.value(0)
+    else:
+        IN3.value(0)
+        IN4.value(1)
+    pwm_b.duty_u16(motor_speed_2)
+
 def calculate_motor_speed(turn_num, straight_num, target_time):
     global motor_speed
     turn_time = 3  # Time for a 90-degree turn (in seconds)
@@ -129,7 +140,6 @@ def calculate_motor_speed(turn_num, straight_num, target_time):
 
 def turn_left():
     global target_yaw
-    initial_yaw = normalize_angle(bno.euler[2])
     target_yaw = normalize_angle(initial_yaw + 90)
 
     error_sum_turn = 0
@@ -184,7 +194,6 @@ def turn_left():
 
 def turn_right():
     global target_yaw
-    initial_yaw = normalize_angle(bno.euler[2])
     target_yaw = normalize_angle(initial_yaw - 90)
 
     error_sum_turn = 0
@@ -282,14 +291,16 @@ def forward(segments):
 
         # Send speeds to motors
         set_motor_speed_a(speed_a)
-        set_motor_speed_b(speed_b)
+        set_motor_speed_b_straight(speed_b)
 
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
         print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}")
     set_motor_speed_a(0)
-    set_motor_speed_b(0)
+    set_motor_speed_b_straight(0)
+    global initial_yaw
+    initial_yaw=target_yaw
     time.sleep(0.2)
 
 # Main loop to check for button press and execute commands
