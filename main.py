@@ -87,48 +87,55 @@ def normalize_angle(angle):
     """Normalize an angle to the range [0, 360)."""
     return (angle+360) % 360
 
-min_speed=0.29
+min_speed=0.295
 max_turn_speed=0.4
 # Helper functions to control motor speed and direction
 def set_motor_speed_a(speed):
-    # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
-    motor_speed_1=int(abs(speed) * 65535)
+    motor_speed_1 = int(abs(speed) * 65535)
     if speed > 0:
         IN1.value(1)
         IN2.value(0)
-    else:
+    elif speed < 0:
         IN1.value(0)
+        IN2.value(1)
+    if speed==0:  # Brake mode
+        IN1.value(1)
         IN2.value(1)
     pwm_a.duty_u16(motor_speed_1)
 
 def set_motor_speed_b(speed):
-    # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
-    motor_speed_2= int(abs(speed) * 65535)
+    motor_speed_2 = int(abs(speed) * 65535)
     if speed > 0:
         IN3.value(1)
         IN4.value(0)
-    else:
+    elif speed < 0:
         IN3.value(0)
+        IN4.value(1)
+    if speed==0:  # Brake mode
+        IN3.value(1)
         IN4.value(1)
     pwm_b.duty_u16(motor_speed_2)
 
 def set_motor_speed_b_straight(speed):
-    # motor_speed = int(min(65535, max(0, abs(speed) * 65535 / 100)))
-    motor_speed_2= int(abs(speed) * 2312)
+    motor_speed_2 = int(abs(speed) * 2337)
     if speed > 0:
         IN3.value(1)
         IN4.value(0)
-    else:
+    elif speed < 0:
         IN3.value(0)
+        IN4.value(1)
+    if speed==0:  # Brake mode
+        IN3.value(1)
         IN4.value(1)
     pwm_b.duty_u16(motor_speed_2)
 
+
 def calculate_motor_speed(turn_num, straight_num, target_time):
     global motor_speed
-    turn_time = 3  # Time for a 90-degree turn (in seconds)
+    turn_time = 4  # Time for a 90-degree turn (in seconds)
     total_turn_time = turn_time * turn_num
     remaining_time = target_time - total_turn_time
-    straight_time = 0.53  # Modify this based on your specific requirements
+    straight_time = 1.53  # Modify this based on your specific requirements
     time_per_straight = remaining_time / straight_num
     motor_speed = 50 * (straight_time / time_per_straight)
 
@@ -187,9 +194,9 @@ def turn_left():
         print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
         #time.sleep(0.1)
     
-    set_motor_speed_a(0)
-    set_motor_speed_b(0)
-    time.sleep(0.2)
+    set_motor_speed_a(0.05)
+    set_motor_speed_b(0.05)
+    time.sleep(1)
     return target_yaw
 
 def turn_right():
@@ -241,9 +248,9 @@ def turn_right():
         print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
         #time.sleep(0.1)
     
-    set_motor_speed_a(0)
-    set_motor_speed_b(0)
-    time.sleep(0.2)
+    set_motor_speed_a(0.05)
+    set_motor_speed_b(0.05)
+    time.sleep(1)
     return target_yaw
 
 def forward(segments):
@@ -297,11 +304,68 @@ def forward(segments):
         last_error_straight = straight_error
         
         print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}")
-    set_motor_speed_a(0)
-    set_motor_speed_b_straight(0)
+    set_motor_speed_a(0.05)
+    set_motor_speed_b(0.05)
     global initial_yaw
     initial_yaw=target_yaw
-    time.sleep(0.2)
+    time.sleep(1)
+
+def backward(segments):
+
+    error_sum_straight = 0
+    last_error_straight = 0
+    encoder_a = Encoder(14, 15)
+    encoder_b= Encoder(11,10)
+    total_distance=segments*25
+    wheel_diameter=6
+    encoder_resolution=1440
+    wheel_circumference=math.pi*wheel_diameter
+    encoder_distance=(total_distance/wheel_circumference)*encoder_resolution
+    traveled_distance=(encoder_b.position()+(-1*encoder_a.position()))/2
+
+    while traveled_distance<encoder_distance:
+        yaw = normalize_angle(bno.euler[2])
+        straight_error = target_yaw - yaw
+        traveled_distance=(encoder_b.position()+(-1*encoder_a.position()))/2
+        # Normalize the turn error
+        if straight_error > 180:
+            straight_error -= 360
+        elif straight_error < -180:
+            straight_error += 360
+
+        # Turn PID calculations
+        P_straight = straight_error * Kp_straight
+        I_straight = error_sum_straight * Ki_straight
+        D_straight = (straight_error - last_error_straight) * Kd_straight
+        correction_straight = P_straight + I_straight + D_straight
+        
+        # Calculate motor speeds based on correction
+        speed_a = motor_speed - correction_straight
+        speed_b = motor_speed + correction_straight
+
+        # Apply minimum limits to avoid stalling
+        if abs(speed_a) > 0 and abs(speed_a) < min_speed:
+            speed_a = min_speed if speed_a > 0 else -min_speed
+        if abs(speed_b) > 0 and abs(speed_b) < min_speed:
+            speed_b = min_speed if speed_b > 0 else -min_speed
+
+        # Optionally clamp speeds to max limits
+        speed_a = max(min(speed_a, motor_speed), -motor_speed)
+        speed_b = max(min(speed_b, motor_speed), -motor_speed)
+
+        # Send speeds to motors
+        set_motor_speed_a(-speed_a)
+        set_motor_speed_b_straight(-speed_b)
+
+        error_sum_straight += straight_error
+        last_error_straight = straight_error
+        
+        print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}")
+    set_motor_speed_a(0.05)
+    set_motor_speed_b(0.05)
+    global initial_yaw
+    initial_yaw=target_yaw
+    time.sleep(1)
 
 # Main loop to check for button press and execute commands
 while True:
@@ -309,17 +373,37 @@ while True:
         print("Button pressed, starting sequence...")
         # Example sequence of function calls
         # Example usage
+        leda.value(0)  
+        ledb.value(0)
+        time.sleep(0.2)
+        leda.value(1)  
+        ledb.value(1)
+        time.sleep(0.2)
+        leda.value(0)  
+        ledb.value(0)
+        time.sleep(0.2)
+        leda.value(1)  
+        ledb.value(1)
+        time.sleep(0.2)
+        set_motor_speed_a(0.05)
+        set_motor_speed_b(0.05)
         target_time = 85
         turn_num = 8
         straight_num = 70
         target_yaw = normalize_angle(bno.euler[2])
         motor_speed = calculate_motor_speed(turn_num, straight_num, target_time)
-        #turn_left()
-        #turn_right()
+        forward(1.33)
+        turn_left()
+        forward(3)
+        turn_right()
         forward(1)
-        #turn_left()
-        #forward(2)
-        
+        backward(1)
+        turn_left()
+        forward(2)
+        set_motor_speed_a(0.05)
+        set_motor_speed_b(0.05)
+        leda.value(0)  
+        ledb.value(0)
         # Debounce delay
         time.sleep(1)
 
