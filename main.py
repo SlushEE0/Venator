@@ -64,8 +64,8 @@ ENB = Pin(21, Pin.OUT)
 # Set up PWM for motors
 pwm_a = PWM(ENA)
 pwm_b = PWM(ENB)
-pwm_a.init(freq=5000, duty_ns=5000)
-pwm_b.init(freq=5000, duty_ns=5000)
+pwm_a.init(freq=5000, duty_ns=5000) # type: ignore
+pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
 
 # PID Parameters
 Kp_straight = 0.05
@@ -82,12 +82,15 @@ deadband_turn = 0.1
 
 # Push button on GPIO 22
 button = Pin(22, Pin.IN, Pin.PULL_UP)
-
+turn_count=0
+straight_count=0
+turn_time = 3.5 # time for one turn (in seconds)
+straight_time = 0.8  # time for one straight at 50% speed (in seconds)
 def normalize_angle(angle):
     """Normalize an angle to the range [0, 360)."""
     return (angle+360) % 360
 
-min_speed=0.28
+min_speed=0.32
 max_turn_speed=0.32
 # Helper functions to control motor speed and direction
 def set_motor_speed_a(speed):
@@ -113,25 +116,26 @@ def set_motor_speed_b(speed):
         IN4.value(1)
     pwm_b.duty_u16(motor_speed_2)
 
-def calculate_motor_speed(turn_num, straight_num, target_time):
+def calculate_speed(segments):
     global motor_speed
-    turn_time = 3.5  # Time for a 90-degree turn (in seconds)
-    total_turn_time = turn_time * turn_num
-    remaining_time = target_time - total_turn_time
-    straight_time = 0.8  # time for one straight at 50% speed (in seconds)
-    time_per_straight = remaining_time / straight_num
-    motor_speed = 0.50 * (straight_time / time_per_straight)
-
-    # Ensure motor speed does not exceed 100%
+    motor_speed=0
+    time_elapsed=time.time()-start_time
+    time_at_destination=turn_count*turn_time+(straight_count+segments)*time_per_straight
+    time_to_destination= time_at_destination-time_elapsed
+    time_per_subsegment=time_to_destination/segments
+    motor_speed = 0.50 * (straight_time / time_per_subsegment)
     if motor_speed > 1:
         motor_speed = 1
-        
+    elif motor_speed < 0.32:
+        motor_speed = 0.32
     return motor_speed
 
 def turn_left():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
     global target_yaw
+    global turn_count
+    turn_count+=1
     target_yaw = normalize_angle(initial_yaw + 90)
 
     error_sum_turn = 0
@@ -182,9 +186,13 @@ def turn_left():
     set_motor_speed_b(0.05)
     time.sleep(1)
     return target_yaw
-
+    turn_count+=1
 def turn_right():
+    set_motor_speed_a(0)
+    set_motor_speed_b(0)
     global target_yaw
+    global turn_count
+    turn_count+=1
     target_yaw = normalize_angle(initial_yaw - 90)
 
     error_sum_turn = 0
@@ -236,9 +244,11 @@ def turn_right():
     set_motor_speed_b(0.05)
     time.sleep(1)
     return target_yaw
-
 def forward(segments):
+    global straight_count
+    straight_count+=segments
     yaw = normalize_angle(bno.euler[2])
+    calculate_speed(segments)
     straight_error = target_yaw - yaw
     error_sum_straight = 0
     last_error_straight = 0
@@ -303,7 +313,10 @@ def forward(segments):
     time.sleep(1)
 
 def backward(segments):
+    global straight_count
+    straight_count+=segments
     yaw = normalize_angle(bno.euler[2])
+    calculate_speed(segments)
     straight_error = target_yaw - yaw
     error_sum_straight = 0
     last_error_straight = 0
@@ -392,8 +405,11 @@ while True:
         target_time = 55
         turn_num = 8
         straight_num = 50
+        total_turn_time = turn_time * turn_num
+        remaining_time = target_time - total_turn_time
+        time_per_straight = remaining_time / straight_num
         target_yaw = normalize_angle(bno.euler[2])
-        motor_speed = calculate_motor_speed(turn_num, straight_num, target_time)
+        start_time=time.time()
         forward(1.3)
         turn_left()
         forward(3)
