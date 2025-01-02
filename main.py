@@ -86,13 +86,14 @@ turn_count=0
 straight_count=0
 turn_time = 3.5 # time for one turn (in seconds)
 straight_time = 0.8  # time for one straight at 50% speed (in seconds)
+min_speed=0.32
+max_turn_speed=0.32
+
+
 def normalize_angle(angle):
     """Normalize an angle to the range [0, 360)."""
     return (angle+360) % 360
 
-min_speed=0.32
-max_turn_speed=0.32
-# Helper functions to control motor speed and direction
 def set_motor_speed_a(speed):
     motor_speed_1 = int(abs(speed) * 65535)
     if speed > 0:
@@ -187,6 +188,7 @@ def turn_left():
     time.sleep(1)
     return target_yaw
     turn_count+=1
+
 def turn_right():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
@@ -244,11 +246,11 @@ def turn_right():
     set_motor_speed_b(0.05)
     time.sleep(1)
     return target_yaw
+
 def forward(segments):
     global straight_count
     straight_count+=segments
     yaw = normalize_angle(bno.euler[2])
-    calculate_speed(segments)
     straight_error = target_yaw - yaw
     error_sum_straight = 0
     last_error_straight = 0
@@ -266,6 +268,8 @@ def forward(segments):
         straight_error = target_yaw - yaw
         traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
         distance_error=encoder_distance-traveled_distance
+        segments_left=segments-distance_error*wheel_circumference/encoder_resolution
+        calculate_speed(segments_left)
         # Normalize the turn error
         if straight_error > 180:
             straight_error -= 360
@@ -316,7 +320,6 @@ def backward(segments):
     global straight_count
     straight_count+=segments
     yaw = normalize_angle(bno.euler[2])
-    calculate_speed(segments)
     straight_error = target_yaw - yaw
     error_sum_straight = 0
     last_error_straight = 0
@@ -334,6 +337,8 @@ def backward(segments):
         straight_error = target_yaw - yaw
         traveled_distance = (encoder_a.position() + (-1 * encoder_b.position())) / -2
         distance_error = encoder_distance - traveled_distance
+        segments_left=segments-distance_error*wheel_circumference/encoder_resolution
+        calculate_speed(segments_left)
         # Normalize the turn error
         if straight_error > 180:
             straight_error -= 360
@@ -418,8 +423,6 @@ while True:
         backward(1)
         turn_left()
         forward(2)
-        set_motor_speed_a(0.05)
-        set_motor_speed_b(0.05)
         leda.value(0)  
         ledb.value(0)
         # Debounce delay
