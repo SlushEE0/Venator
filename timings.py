@@ -68,17 +68,17 @@ pwm_a.init(freq=10000, duty_u16=300000) # type: ignore
 pwm_b.init(freq=10000, duty_u16=300000) # type: ignore
 
 # PID Parameters
-Kp_straight = 0.1
+Kp_straight = 0.05
 Ki_straight = 0.0
-Kd_straight = 1
-Kp_distance = 0.5
+Kd_straight = 0
+Kp_distance = 0.01
 Ki_distance = 0.0
 Kd_distance = 0.0
 Kp_turn = 0.01
 Ki_turn = 0.00000
-Kd_turn = 0
+Kd_turn = 0.1
 deadband_distance = 10
-deadband_turn = 0.1
+deadband_turn = 0.07
 
 # Push button on GPIO 22
 button = Pin(22, Pin.IN, Pin.PULL_UP)
@@ -95,7 +95,7 @@ def normalize_angle(angle):
     return (angle+360) % 360
 
 def set_motor_speed_a(speed):
-    motor_speed_1 = int(abs(speed) * 300000)
+    motor_speed_1 = int(abs(speed) * 65535)
     if speed > 0:
         IN1.value(1)
         IN2.value(0)
@@ -108,7 +108,7 @@ def set_motor_speed_a(speed):
     pwm_a.duty_u16(motor_speed_1)
 
 def set_motor_speed_b(speed):
-    motor_speed_2 = int(abs(speed) * 300000)
+    motor_speed_2 = int(abs(speed) * 65535)
     if speed > 0:
         IN3.value(1)
         IN4.value(0)
@@ -131,118 +131,6 @@ def calculate_speed(x):
         motor_speed = 0.32
     return motor_speed
 
-def turn_left():
-    set_motor_speed_a(0)
-    set_motor_speed_b(0)
-    global target_yaw
-    global turn_count
-    turn_count+=1
-    target_yaw = normalize_angle(initial_yaw + 90)
-
-    error_sum_turn = 0
-    last_error_turn = 0
-
-    while True:
-        yaw = normalize_angle(bno.euler[2])
-        turn_error = target_yaw - yaw
-        if abs(turn_error) < deadband_turn:
-            break
-        
-        # Turn PID calculations
-        P_turn = turn_error * Kp_turn
-        I_turn = error_sum_turn * Ki_turn
-        D_turn = (turn_error - last_error_turn) * Kd_turn
-        correction_turn = P_turn + I_turn 
-    
-    # Calculate motor speeds based on correction
-        speed_a = correction_turn
-        speed_b = -correction_turn
-        # Ensure motors stop at the correct target
-        if abs(turn_error) < deadband_turn:
-            speed_a = 0
-            speed_b = 0
-        else:
-            # Apply minimum limits to avoid stalling
-            if abs(speed_a) > 0 and abs(speed_a) < min_speed:
-                speed_a = min_speed if speed_a > 0 else -min_speed
-            if abs(speed_b) > 0 and abs(speed_b) < min_speed:
-                speed_b = min_speed if speed_b > 0 else -min_speed
-
-            # Optionally clamp speeds to max limits
-            speed_a = max(min(speed_a, max_turn_speed), -max_turn_speed)
-            speed_b = max(min(speed_b, max_turn_speed), -max_turn_speed)
-
-        # Send speeds to motors
-        set_motor_speed_a(speed_a)
-        set_motor_speed_b(speed_b)
-
-
-        error_sum_turn += turn_error
-        last_error_turn = turn_error
-        
-        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}")
-    
-    set_motor_speed_a(0.05)
-    set_motor_speed_b(0.05)
-    time.sleep(0.5)
-    return target_yaw
-
-def turn_right():
-    set_motor_speed_a(0)
-    set_motor_speed_b(0)
-    global target_yaw
-    global turn_count
-    turn_count+=1
-    target_yaw = normalize_angle(initial_yaw - 90)
-
-    error_sum_turn = 0
-    last_error_turn = 0
-
-    while True:
-        yaw = normalize_angle(bno.euler[2])
-        turn_error = target_yaw - yaw
-        if abs(turn_error) < deadband_turn:
-            break
-        
-        # Turn PID calculations
-        P_turn = turn_error * Kp_turn
-        I_turn = error_sum_turn * Ki_turn
-        D_turn = (turn_error - last_error_turn) * Kd_turn
-        correction_turn = P_turn
-        
-    # Calculate motor speeds based on correction
-        speed_a = correction_turn
-        speed_b = -correction_turn
-
-        # Ensure motors stop at the correct target
-        if abs(turn_error) < deadband_turn:
-            speed_a = 0
-            speed_b = 0
-        else:
-            # Apply minimum limits to avoid stalling
-            if abs(speed_a) > 0 and abs(speed_a) < min_speed:
-                speed_a = min_speed if speed_a > 0 else -min_speed
-            if abs(speed_b) > 0 and abs(speed_b) < min_speed:
-                speed_b = min_speed if speed_b > 0 else -min_speed
-
-            # Optionally clamp speeds to max limits
-            speed_a = max(min(speed_a, max_turn_speed), -max_turn_speed)
-            speed_b = max(min(speed_b, max_turn_speed), -max_turn_speed)
-
-        # Send speeds to motors
-        set_motor_speed_a(speed_a)
-        set_motor_speed_b(speed_b)
-
-
-        error_sum_turn += turn_error
-        last_error_turn = turn_error
-        
-        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}")
-    
-    set_motor_speed_a(0.05)
-    set_motor_speed_b(0.05)
-    time.sleep(0.5)
-    return target_yaw
 
 def forward(segments):
     global straight_count
@@ -253,11 +141,13 @@ def forward(segments):
     last_error_straight = 0
     encoder_a = Encoder(14, 15)
     encoder_b= Encoder(11,10)
+    encoder_b.reset()
+    encoder_a.reset()
     total_distance=segments*25
     wheel_diameter=6
     encoder_resolution=1440
     wheel_circumference=math.pi*wheel_diameter
-    encoder_distance=(total_distance/wheel_circumference)*encoder_resolution #/abs((math.cos(straight_error)))
+    encoder_distance=(total_distance/wheel_circumference)*encoder_resolution/abs((math.cos(straight_error)))
     traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
     distance_error=encoder_distance-traveled_distance
     while abs(distance_error)>deadband_distance:
@@ -265,8 +155,7 @@ def forward(segments):
         straight_error = target_yaw - yaw
         traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
         distance_error=encoder_distance-traveled_distance
-        segments_left=segments-(distance_error*wheel_circumference/encoder_resolution)
-
+        segments_left=segments-distance_error*wheel_circumference/encoder_resolution
         calculate_speed(segments_left)
         # Normalize the turn error
         if straight_error > 180:
@@ -286,8 +175,8 @@ def forward(segments):
             P_distance=0
         motor_b_speed=-2.13414*motor_speed**3+3.74527*motor_speed**2-1.21031*motor_speed+0.429783
         # Calculate motor speeds based on correction
-        speed_a = 1 + correction_straight + P_distance
-        speed_b = 1 - correction_straight + P_distance
+        speed_a = motor_speed + correction_straight + P_distance
+        speed_b = motor_b_speed - correction_straight + P_distance
 
         # Apply minimum limits to avoid stalling
         if abs(speed_a) > 0 and abs(speed_a) < min_speed:
@@ -296,95 +185,23 @@ def forward(segments):
             speed_b = min_speed if speed_b > 0 else -min_speed
 
         # Optionally clamp speeds to max limits
-        speed_a = max(min(speed_a, motor_speed), -motor_speed)
-        speed_b = max(min(speed_b, motor_speed), -motor_speed)
+        speed_a = max(min(speed_a, 1), -1)
+        speed_b = max(min(speed_b, 1), -1)
 
         # Send speeds to motors
-        set_motor_speed_a(speed_a)
-        set_motor_speed_b(1*speed_b)
+        set_motor_speed_a(1)
+        set_motor_speed_b(1)
 
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
-        #print(f"distance traveled: {traveled_distance}, target distance: {encoder_distance}, speed_a: {speed_a}, speed_b: {speed_b}")
+        #print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
     
     set_motor_speed_a(-0.05)
     set_motor_speed_b(-0.05)
-    # time.sleep(0.5)
     global initial_yaw
     initial_yaw=target_yaw
-
-def backward(segments):
-    global straight_count
-    straight_count+=segments
-    yaw = normalize_angle(bno.euler[2])
-    straight_error = target_yaw - yaw
-    error_sum_straight = 0
-    last_error_straight = 0
-    encoder_a = Encoder(14, 15)
-    encoder_b = Encoder(11, 10)
-    total_distance = segments * 25
-    wheel_diameter = 6
-    encoder_resolution = 1440
-    wheel_circumference = math.pi * wheel_diameter
-    encoder_distance = (total_distance / wheel_circumference) * encoder_resolution #/abs((math.cos(straight_error)))
-    traveled_distance = (encoder_a.position() + (-1 * encoder_b.position())) / -2
-    distance_error = encoder_distance - traveled_distance
-    while abs(distance_error) > deadband_distance:
-        yaw = normalize_angle(bno.euler[2])
-        straight_error = target_yaw - yaw
-        traveled_distance = (encoder_a.position() + (-1 * encoder_b.position())) / -2
-        distance_error = encoder_distance - traveled_distance
-        segments_left=segments-(distance_error*wheel_circumference/encoder_resolution)
-        calculate_speed(segments_left)
-        # Normalize the turn error
-        if straight_error > 180:
-            straight_error -= 360
-        elif straight_error < -180:
-            straight_error += 360
-
-        # Turn PID calculations
-        P_straight = straight_error * Kp_straight
-        I_straight = error_sum_straight * Ki_straight
-        D_straight = (straight_error - last_error_straight) * Kd_straight
-        correction_straight = P_straight + I_straight + D_straight
-        if abs(distance_error) < 1440:
-            # Distance PID Calculations:
-            P_distance = -distance_error * Kp_distance
-        else:
-            P_distance = 0
-
-        motor_b_speed = -2.13414 * motor_speed**3 + 3.74527 * motor_speed**2 - 1.21031 * motor_speed + 0.429783
-        # Calculate motor speeds based on correction
-        speed_a = -motor_speed + correction_straight + P_distance
-        speed_b = -motor_b_speed - correction_straight + P_distance
-
-        # Apply minimum limits to avoid stalling
-        if abs(speed_a) > 0 and abs(speed_a) < min_speed:
-            speed_a = min_speed if speed_a > 0 else -min_speed
-        if abs(speed_b) > 0 and abs(speed_b) < min_speed:
-            speed_b = min_speed if speed_b > 0 else -min_speed
-
-        # Optionally clamp speeds to max limits
-        speed_a = max(min(speed_a, motor_speed), -motor_speed)
-        speed_b = max(min(speed_b, motor_speed), -motor_speed)
-
-        # Send speeds to motors
-        set_motor_speed_a(speed_a)
-        set_motor_speed_b(1 * speed_b)
-
-        error_sum_straight += straight_error
-        last_error_straight = straight_error
-
-        print(f"distance traveled: {traveled_distance}, target distance: {encoder_distance}")
-    
-    set_motor_speed_a(0.05)
-    set_motor_speed_b(0.05)
-    time.sleep(0.5)
-    global initial_yaw
-    initial_yaw = target_yaw
-
-
+    time.sleep(0.2)
 # Main loop to check for button press and execute commands
 while True:
     if button.value() == 0:  # Button pressed (assuming active low)
@@ -392,12 +209,9 @@ while True:
         # Example sequence of function calls
         # Example usage
         global start_time
-        start_time=time.time()
         #print(start_time)
         leda.value(0)  
         ledb.value(0)
-        set_motor_speed_a(0.05)
-        set_motor_speed_b(0.05)
         target_time = 0.8
         turn_num = 0
         straight_num = 1
@@ -405,9 +219,12 @@ while True:
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
         target_yaw = normalize_angle(bno.euler[2])
+        set_motor_speed_a(0.05)
+        set_motor_speed_b(0.05)
         start_time=time.time_ns()
         forward(1)
         print(time.time_ns()-start_time)
+        #turn_left()
         # turn_left()
         # forward(3)
         # turn_right()
@@ -419,6 +236,7 @@ while True:
         ledb.value(1)
         # Debounce delay
         # time.sleep(1)
-
+    set_motor_speed_a(0.05)
+    set_motor_speed_b(0.05)
     # Short delay to prevent button bouncing
     time.sleep(0.1)
