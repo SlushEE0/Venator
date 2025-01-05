@@ -131,7 +131,7 @@ def calculate_speed(segments):
     return motor_speed
 
 
-def turn_left():
+def l():
 
     set_motor_speed_a(0)
     set_motor_speed_b(0)
@@ -191,7 +191,7 @@ def turn_left():
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
             stall_counter += 1 
-            if stall_counter > 5: 
+            if stall_counter > 10: 
                 min_speed += 0.001 # Increment minimum speed 
                 speed_a = min_speed if speed_a > 0 else -min_speed 
                 speed_b = min_speed if speed_b > 0 else -min_speed 
@@ -215,7 +215,7 @@ def turn_left():
     time.sleep(0.2)
     return target_yaw,min_speed
 
-def turn_right():
+def r():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
     global target_yaw
@@ -279,7 +279,7 @@ def turn_right():
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
             stall_counter += 1 
-            if stall_counter > 5: 
+            if stall_counter > 10: 
                 min_speed += 0.001 # Increment minimum speed 
                 speed_a = min_speed if speed_a > 0 else -min_speed 
                 speed_b = min_speed if speed_b > 0 else -min_speed 
@@ -303,8 +303,9 @@ def turn_right():
     time.sleep(0.2)
     return target_yaw,min_speed
 
-def forward(segments):
+def f(segments):
     global straight_count
+    global min_speed
     straight_count+=segments
     yaw = normalize_angle(bno.euler[2])
     straight_error = target_yaw - yaw
@@ -312,8 +313,12 @@ def forward(segments):
     last_error_straight = 0
     encoder_a = Encoder(14, 15)
     encoder_b= Encoder(11,10)
+    last_encoder_a_position = 0
+    last_encoder_b_position = 0
     encoder_b.reset()
     encoder_a.reset()
+    stall_counter = 0
+    recovery = 0
     total_distance=segments*25
     wheel_diameter=6
     encoder_resolution=1440
@@ -367,15 +372,37 @@ def forward(segments):
         last_error_straight = straight_error
         
         print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
-    
+        speed_a_encoder = encoder_a.position() 
+        speed_b_encoder = encoder_b.position() 
+        if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
+            stall_counter += 1 
+            if stall_counter > 10: 
+                min_speed += 0.001 # Increment minimum speed 
+                speed_a = min_speed if speed_a > 0 else -min_speed 
+                speed_b = min_speed if speed_b > 0 else -min_speed 
+                recovery += 1 
+                print(recovery) 
+                if recovery > 10: 
+                    temp_speed_a=0.4 if speed_a > 0 else -0.4
+                    temp_speed_b=0.4 if speed_b > 0 else -0.4
+                    set_motor_speed_a(temp_speed_a) # Apply a high temporary speed 
+                    set_motor_speed_b(temp_speed_b) 
+                    time.sleep(0.05) 
+                    recovery = 0 # Reset recovery after applying high speed 
+                else: stall_counter = 0 
+        else: 
+            stall_counter = 0 
+        last_encoder_a_position = speed_a_encoder 
+        last_encoder_b_position = speed_b_encoder
     set_motor_speed_a(-0.05)
     set_motor_speed_b(-0.05)
     global initial_yaw
     initial_yaw=target_yaw
     time.sleep(0.2)
 
-def backward(segments):
+def b(segments):
     global straight_count
+    global min_speed
     straight_count+=segments
     yaw = normalize_angle(bno.euler[2])
     straight_error = target_yaw - yaw
@@ -383,6 +410,10 @@ def backward(segments):
     last_error_straight = 0
     encoder_a = Encoder(14, 15)
     encoder_b = Encoder(11, 10)
+    last_encoder_a_position = 0
+    last_encoder_b_position = 0
+    stall_counter = 0
+    recovery = 0
     encoder_b.reset()
     encoder_a.reset()
     total_distance = segments * 25
@@ -439,7 +470,28 @@ def backward(segments):
         last_error_straight = straight_error
 
         print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}, Desired Speed: {motor_speed}")
-    
+        speed_a_encoder = encoder_a.position() 
+        speed_b_encoder = encoder_b.position() 
+        if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
+            stall_counter += 1 
+            if stall_counter > 10: 
+                min_speed += 0.001 # Increment minimum speed 
+                speed_a = min_speed if speed_a > 0 else -min_speed 
+                speed_b = min_speed if speed_b > 0 else -min_speed 
+                recovery += 1 
+                print(recovery) 
+                if recovery > 10: 
+                    temp_speed_a=0.4 if speed_a > 0 else -0.4
+                    temp_speed_b=0.4 if speed_b > 0 else -0.4
+                    set_motor_speed_a(temp_speed_a) # Apply a high temporary speed 
+                    set_motor_speed_b(temp_speed_b) 
+                    time.sleep(0.05) 
+                    recovery = 0 # Reset recovery after applying high speed 
+                else: stall_counter = 0 
+        else: 
+            stall_counter = 0 
+        last_encoder_a_position = speed_a_encoder 
+        last_encoder_b_position = speed_b_encoder
     set_motor_speed_a(0.05)
     set_motor_speed_b(0.05)
     global initial_yaw
@@ -460,12 +512,12 @@ while True:
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
         target_yaw = normalize_angle(bno.euler[2])
-        forward(0)
+        f(0)
         start_time=time.time_ns()
-        turn_left()
+        l()
         print(time.time_ns()-start_time)
         print(min_speed)
-        turn_right()
+        r()
         # forward(2)
         # turn_right()
         # forward(6)
