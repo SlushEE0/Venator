@@ -69,7 +69,7 @@ pwm_a.init(freq=5000, duty_ns=5000) # type: ignore
 pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
 
 # PID Parameters
-Kp_straight = 0.05
+Kp_straight = 0.035
 Ki_straight = 0.0
 Kd_straight = 0
 Kp_distance = 0
@@ -87,7 +87,7 @@ turn_count=0
 straight_count=0
 turn_time = 3.5 # time for one turn (in seconds)
 straight_time = 1.47  # time for one straight at 50% speed (in seconds)
-min_speed=0.2
+min_speed=0.27
 max_turn_speed=0.32
 MIN_STALL_THRESHOLD = 1
 
@@ -505,24 +505,21 @@ while True:
         print("Button pressed, starting sequence...")
         leda.value(0)
         ledb.value(0)
-        target_time = 60
-        turn_num = 3
-        straight_num = 17.3
+        target_time = 5
+        turn_num = 0
+        straight_num = 8
         total_turn_time = turn_time * turn_num
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
         target_yaw = normalize_angle(bno.euler[2])
-        f(0)
         start_time=time.time_ns()
-        l()
-        print(time.time_ns()-start_time)
-        print(min_speed)
-        r()
-        # forward(2)
-        # turn_right()
-        # forward(6)
-        # turn_right()
-        # forward(8)
+        f(8)
+        # l()
+        # f(4)
+        # r()
+        # f(6)
+        # r()
+        # f(8)
         leda.value(1)  
         ledb.value(1)
         # Debounce delay
