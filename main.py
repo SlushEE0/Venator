@@ -126,7 +126,7 @@ def calculate_speed(segments):
     time_elapsed=time.time_ns()-start_time
     time_at_destination=turn_count*turn_time+(straight_count+segments)*time_per_straight
     time_to_destination= time_at_destination-time_elapsed
-    print(f"time:{time_at_destination/10**9}")
+    print(f"time supposed to be at destination:{time_at_destination/10**9}")
     if time_to_destination < 0:
         motor_speed=0.95
         return motor_speed
@@ -336,7 +336,7 @@ def f(segments):
         straight_error = target_yaw - yaw
         traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
         distance_error=encoder_distance-traveled_distance
-        segments_left=total_distance-distance_error*wheel_circumference/encoder_resolution
+        segments_left = (total_distance - (distance_error * wheel_circumference / encoder_resolution))
         calculate_speed(segments_left)
         # Normalize the turn error
         if straight_error > 180:
@@ -455,6 +455,7 @@ def b(segments):
             P_distance = 0
 
         motor_b_speed = -2.13414 * motor_speed**3 + 3.74527 * motor_speed**2 - 1.21031 * motor_speed + 0.429783
+        
         # Calculate motor speeds based on correction
         speed_a = -motor_speed + correction_straight + P_distance
         speed_b = -motor_b_speed - correction_straight + P_distance
@@ -512,9 +513,9 @@ while True:
         print("Button pressed, starting sequence...")
         leda.value(0)
         ledb.value(0)
-        target_time = 30
+        target_time = 2
         turn_num = 0
-        straight_num = 8
+        straight_num = 2
         total_turn_time = turn_time * turn_num
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
@@ -522,7 +523,7 @@ while True:
         print(average_speed)
         target_yaw = normalize_angle(bno.euler[2])
         start_time=time.time_ns()
-        f(8)
+        f(2)
         # l()
         # f(4)
         # r()
