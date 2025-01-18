@@ -67,12 +67,14 @@ pwm_a = PWM(ENA)
 pwm_b = PWM(ENB)
 pwm_a.init(freq=5000, duty_ns=5000) # type: ignore
 pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
+f = open("logging.txt", "a")
+f.write("Start of Run")
 
 # PID Parameters
 Kp_straight = 0.035
 Ki_straight = 0.0
 Kd_straight = 0
-Kp_distance = 0
+Kp_distance = 0.01
 Ki_distance = 0.0
 Kd_distance = 0.0
 Kp_turn = 0.01
@@ -331,7 +333,8 @@ def f(segments):
     encoder_distance=(total_distance/wheel_circumference)*encoder_resolution/abs((math.cos(straight_error)))
     traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
     distance_error=encoder_distance-traveled_distance
-    while abs(distance_error)>deadband_distance:
+
+    while abs(distance_error)>1000:
         yaw = normalize_angle(bno.euler[2])
         straight_error = target_yaw - yaw
         traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
@@ -349,15 +352,11 @@ def f(segments):
         I_straight = error_sum_straight * Ki_straight
         D_straight = (straight_error - last_error_straight) * Kd_straight
         correction_straight = P_straight + I_straight + D_straight
-        if abs(distance_error)<1440:
-        #Distance PID Calculations:
-            P_distance = distance_error * Kp_distance
-        else:
-            P_distance=0
+
         motor_b_speed=-2.13414*motor_speed**3+3.74527*motor_speed**2-1.21031*motor_speed+0.429783
         # Calculate motor speeds based on correction
-        speed_a = motor_speed + correction_straight + P_distance
-        speed_b = motor_b_speed - correction_straight + P_distance
+        speed_a = motor_speed + correction_straight 
+        speed_b = motor_b_speed - correction_straight
 
         # Apply minimum limits to avoid stalling
         if abs(speed_a) > 0 and abs(speed_a) < min_speed:
@@ -400,12 +399,61 @@ def f(segments):
         last_encoder_a_position = speed_a_encoder 
         last_encoder_b_position = speed_b_encoder
 
+    while abs(distance_error)>deadband_distance:
+        traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
+        distance_error=encoder_distance-traveled_distance
+        segments_left = (total_distance - (distance_error * wheel_circumference / encoder_resolution))
+        P_straight = straight_error * Kp_straight
+        motor_b_speed=-2.13414*motor_speed**3+3.74527*motor_speed**2-1.21031*motor_speed+0.429783
+        P_dist = distance_error * Kp_distance
+        # Calculate motor speeds based on correction
+        speed_a = motor_speed + P_dist
+        speed_b = motor_b_speed + P_dist
+
+        # Apply minimum limits to avoid stalling
+        if abs(speed_a) > 0 and abs(speed_a) < min_speed:
+            speed_a = min_speed if speed_a > 0 else -min_speed
+        if abs(speed_b) > 0 and abs(speed_b) < min_speed:
+            speed_b = min_speed if speed_b > 0 else -min_speed
+
+        # Optionally clamp speeds to max limits
+        speed_a = max(min(speed_a, 0.5), -0.5)
+        speed_b = max(min(speed_b, 0.5), -0.5)
+
+        # Send speeds to motors
+        set_motor_speed_a(speed_a)
+        set_motor_speed_b(1*speed_b)
+        
+        print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
+        speed_a_encoder = encoder_a.position() 
+        speed_b_encoder = encoder_b.position() 
+        if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
+            stall_counter += 1 
+            if stall_counter > 10: 
+                min_speed += 0.001 # Increment minimum speed 
+                speed_a = min_speed if speed_a > 0 else -min_speed 
+                speed_b = min_speed if speed_b > 0 else -min_speed 
+                recovery += 1 
+                print(recovery) 
+                if recovery > 10: 
+                    temp_speed_a=0.4 if speed_a > 0 else -0.4
+                    temp_speed_b=0.4 if speed_b > 0 else -0.4
+                    set_motor_speed_a(temp_speed_a) # Apply a high temporary speed 
+                    set_motor_speed_b(temp_speed_b) 
+                    time.sleep(0.05) 
+                    recovery = 0 # Reset recovery after applying high speed 
+                else: stall_counter = 0 
+        else: 
+            stall_counter = 0 
+        last_encoder_a_position = speed_a_encoder 
+        last_encoder_b_position = speed_b_encoder
+    
     set_motor_speed_a(-0.05)
     set_motor_speed_b(-0.05)
+
     global initial_yaw
     initial_yaw=target_yaw
     time.sleep(0.2)
-
 def b(segments):
     global straight_count
     global min_speed
@@ -513,9 +561,9 @@ while True:
         print("Button pressed, starting sequence...")
         leda.value(0)
         ledb.value(0)
-        target_time = 2
-        turn_num = 0
-        straight_num = 2
+        target_time = 30
+        turn_num = 5
+        straight_num = 19.3
         total_turn_time = turn_time * turn_num
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
@@ -523,13 +571,15 @@ while True:
         print(average_speed)
         target_yaw = normalize_angle(bno.euler[2])
         start_time=time.time_ns()
-        f(2)
-        # l()
-        # f(4)
-        # r()
-        # f(6)
-        # r()
-        # f(8)
+        f(1.3)
+        l()
+        f(4)
+        r()
+        f(6)
+        r()
+        l()
+        r()
+        f(8)
         leda.value(1)  
         ledb.value(1)
         # Debounce delay
