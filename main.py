@@ -137,19 +137,24 @@ def calculate_speed(traveled_distance):
     print(f"Time to be at destination: {time_to_destination} seconds")
     if abs(traveled_distance)<=0:
         motor_speed=average_speed
-        print(f"motor: speed {motor_speed}")
+        print(f"motor: speed1 {motor_speed}")
         return motor_speed
     else:
         time_per_subsegment=time_to_destination/traveled_distance
         if time_per_subsegment<0:
             motor_speed=min_speed
-            print(f"motor: speed {motor_speed}")
+            print(f"motor: speed2 {motor_speed}")
             return motor_speed
         else:
-            print(f"time_per_subsegment {time_per_subsegment}")
-            motor_speed = 0.5*(straight_time / time_per_subsegment)
-            print(f"motor: speed {motor_speed}")
-            return motor_speed
+            if abs(time_per_subsegment)<0.05:
+                motor_speed=average_speed
+                print(f"motor: speed3 {motor_speed}")
+                return motor_speed
+            else:  
+                print(f"time_per_subsegment {time_per_subsegment}") #case 4
+                motor_speed = 0.5*(straight_time / time_per_subsegment)
+                print(f"motor: speed4 {motor_speed}")
+                return motor_speed
 
 def l():
 
@@ -389,7 +394,8 @@ def f(segments):
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
-        print(f"yaw: {yaw}, target yaw: {target_yaw} distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
+        print(f"yaw: {yaw}, target yaw: {target_yaw}, correction: { correction_straight}")
+        print(f"distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
