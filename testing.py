@@ -1,8 +1,6 @@
 from machine import Pin, PWM, I2C
 import time
 import math
-from array import array
-import rp2
 from bno08x_i2c import *
 
 # Initialize I2C for IMU
@@ -16,7 +14,6 @@ leda = Pin(1, Pin.OUT)
 ledb = Pin(6, Pin.OUT) 
 leda.value(1)  
 ledb.value(1)
-
 class Encoder:
     def __init__(self, pin_x, pin_y, reverse=False, scale=1):
         self.reverse = reverse
@@ -56,8 +53,6 @@ class Encoder:
 # Motor A Encoder pins using GPIO 15 and 14
 encoder_a = Encoder(14, 15)
 encoder_b= Encoder(11,10)
-encoder_a.reset()
-encoder_b.reset()
 
 
 # Motor control pins
@@ -74,25 +69,25 @@ pwm_a.init(freq=5000, duty_ns=5000) # type: ignore
 pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
 
 # PID Parameters
-Kp_straight = 0.07
-Ki_straight = 0.0007
-Kd_straight = 0.29
-Kp_distance = 0.001
+Kp_straight = 0.035
+Ki_straight = 0.0
+Kd_straight = 0
+Kp_distance = 0.01
 Ki_distance = 0.0
 Kd_distance = 0.0
 Kp_turn = 0.01
 Ki_turn = 0.00000
-Kd_turn = 0.5
+Kd_turn = 0.1
 deadband_distance = 10
-deadband_turn = 0.5
+deadband_turn = 0.07
 
 # Push button on GPIO 22
 button = Pin(22, Pin.IN, Pin.PULL_UP)
 turn_count=0
 straight_count=0
-turn_time = 2.5 # time for one turn (in seconds)
+turn_time = 3.5 # time for one turn (in seconds)
 straight_time = 1.47  # time for one straight at 50% speed (in seconds)
-min_speed=0.28
+min_speed=0.27
 max_turn_speed=0.32
 MIN_STALL_THRESHOLD = 1
 
@@ -153,10 +148,10 @@ def l():
     target_yaw = normalize_angle(initial_yaw + 90)
     last_encoder_a_position = 0
     last_encoder_b_position = 0
-    encoder_a = Encoder(14,15)
-    encoder_b = Encoder(11,10) 
+    encoder_a = Encoder(14, 15)
+    encoder_b = Encoder(11, 10)
+    encoder_b.reset()
     encoder_a.reset()
-    encoder_b.reset() 
     stall_counter = 0
     recovery = 0
     error_sum_turn = 0
@@ -236,10 +231,10 @@ def r():
     target_yaw = normalize_angle(initial_yaw - 90)
     last_encoder_a_position = 0
     last_encoder_b_position = 0
-    encoder_a = Encoder(14,15)
-    encoder_b = Encoder(11,10)
-    encoder_a.reset()
+    encoder_a = Encoder(14, 15)
+    encoder_b = Encoder(11, 10)
     encoder_b.reset()
+    encoder_a.reset()
     stall_counter = 0
     recovery = 0
     error_sum_turn = 0
@@ -321,31 +316,27 @@ def f(segments):
     straight_error = target_yaw - yaw
     error_sum_straight = 0
     last_error_straight = 0
-    encoder_a = Encoder(14,15)
-    encoder_b = Encoder(11,10)
-    encoder_a.reset()
+    encoder_a = Encoder(14, 15)
+    encoder_b= Encoder(11,10)
+    last_encoder_a_position = 0
+    last_encoder_b_position = 0
     encoder_b.reset()
-    last_encoder_a_position=0
-    last_encoder_b_position=0
+    encoder_a.reset()
     stall_counter = 0
     recovery = 0
-    total_distance=0
     total_distance=segments*25
     wheel_diameter=6
     encoder_resolution=1440
     wheel_circumference=math.pi*wheel_diameter
-    encoder_distance=0
-    encoder_distance=(total_distance/wheel_circumference)*encoder_resolution
+    encoder_distance=(total_distance/wheel_circumference)*encoder_resolution/abs((math.cos(straight_error)))
     traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
     distance_error=encoder_distance-traveled_distance
-
 
     while abs(distance_error)>1000:
         yaw = normalize_angle(bno.euler[2])
         straight_error = target_yaw - yaw
         traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
         distance_error=encoder_distance-traveled_distance
-        print(distance_error)
         segments_left = (total_distance - (distance_error * wheel_circumference / encoder_resolution))
         calculate_speed(segments_left)
         # Normalize the turn error
@@ -382,7 +373,7 @@ def f(segments):
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
-        print(f"yaw: {yaw}, target yaw: {target_yaw} distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
+        print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -410,7 +401,7 @@ def f(segments):
         traveled_distance=(encoder_a.position()+(-1*encoder_b.position()))/2
         distance_error=encoder_distance-traveled_distance
         segments_left = (total_distance - (distance_error * wheel_circumference / encoder_resolution))
-        P_straight = distance_error * Kp_straight
+        P_straight = straight_error * Kp_straight
         motor_b_speed=-2.13414*motor_speed**3+3.74527*motor_speed**2-1.21031*motor_speed+0.429783
         P_dist = distance_error * Kp_distance
         # Calculate motor speeds based on correction
@@ -431,7 +422,7 @@ def f(segments):
         set_motor_speed_a(speed_a)
         set_motor_speed_b(1*speed_b)
         
-        print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b}")
+        print(f"yaw: {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -469,26 +460,26 @@ def b(segments):
     straight_error = target_yaw - yaw
     error_sum_straight = 0
     last_error_straight = 0
-    encoder_a = Encoder(14,15)
-    encoder_b = Encoder(11,10)
-    encoder_a.reset()
-    encoder_b.reset()
+    encoder_a = Encoder(14, 15)
+    encoder_b = Encoder(11, 10)
     last_encoder_a_position = 0
     last_encoder_b_position = 0
     stall_counter = 0
     recovery = 0
+    encoder_b.reset()
+    encoder_a.reset()
     total_distance = segments * 25
     wheel_diameter = 6
     encoder_resolution = 1440
     wheel_circumference = math.pi * wheel_diameter
-    encoder_distance = (total_distance / wheel_circumference) * encoder_resolution
-    traveled_distance = (encoder_a.position() + (-1*encoder_b.position())) / -2
+    encoder_distance = (total_distance / wheel_circumference) * encoder_resolution / abs((math.cos(straight_error)))
+    traveled_distance = (encoder_a.position() + (-1 * encoder_b.position())) / -2
     distance_error = encoder_distance - traveled_distance
 
     while abs(distance_error) > deadband_distance:
         yaw = normalize_angle(bno.euler[2])
         straight_error = target_yaw - yaw
-        traveled_distance = (encoder_a.position() + (-1*encoder_b.position())) / -2
+        traveled_distance = (encoder_a.position() + (-1 * encoder_b.position())) / -2
         distance_error = encoder_distance - traveled_distance
         segments_left=total_distance-distance_error*wheel_circumference/encoder_resolution
         calculate_speed(segments_left)
@@ -568,8 +559,8 @@ while True:
         print("Button pressed, starting sequence...")
         leda.value(0)
         ledb.value(0)
-        target_time = 45
-        turn_num = 3
+        target_time = 30
+        turn_num = 5
         straight_num = 19.3
         total_turn_time = turn_time * turn_num
         remaining_time = target_time - total_turn_time
@@ -578,12 +569,6 @@ while True:
         print(average_speed)
         target_yaw = normalize_angle(bno.euler[2])
         start_time=time.time_ns()
-        f(1.3)
-        l()
-        f(4)
-        r()
-        f(6)
-        r()
         f(8)
         leda.value(1)  
         ledb.value(1)
