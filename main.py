@@ -83,6 +83,7 @@ Kd_distance = 0.0
 Kp_turn = 0.01
 Ki_turn = 0.00000
 Kd_turn = 0.5
+Kp_time=1
 deadband_distance = 10
 deadband_turn = 0.5
 
@@ -130,32 +131,22 @@ def calculate_speed(traveled_distance):
     motor_speed=0
     time_elapsed=(time.time_ns()-start_time)/1e9
     time_at_destination=(turn_count*turn_time)+((straight_count+traveled_distance)*time_per_straight)
-    time_to_destination= time_at_destination-time_elapsed
+    time_error= time_at_destination-time_elapsed
     print(f"traveled_segments:{traveled_distance}")
     print(f"Time supposed to be at destination: {time_at_destination} seconds") 
     print(f"Time elapsed: {time_elapsed } seconds") 
-    print(f"Time to be at destination: {time_to_destination} seconds")
+    print(f"Time to be at destination: {time_error} seconds")
     if abs(traveled_distance)<=0:
         motor_speed=average_speed
         print(f"motor: speed1 {motor_speed}")
         return motor_speed
     else:
-        time_per_subsegment=time_to_destination/traveled_distance
-        if time_per_subsegment<0:
-            motor_speed=min_speed
-            print(f"motor: speed2 {motor_speed}")
-            return motor_speed
-        else:
-            if abs(time_per_subsegment)<0.05:
-                motor_speed=average_speed
-                print(f"motor: speed3 {motor_speed}")
-                return motor_speed
-            else:  
-                print(f"time_per_subsegment {time_per_subsegment}") #case 4
-                motor_speed = 0.5*(straight_time / time_per_subsegment)
-                print(f"motor: speed4 {motor_speed}")
-                return motor_speed
-
+        time_per_subsegment=time_error/traveled_distance 
+        print(f"time_per_subsegment {time_per_subsegment}") #case 4
+        P_time = time_error * Kp_time 
+        motor_speed = average_speed - P_time
+        print(f"motor: speed4 {motor_speed}")
+        return motor_speed
 def l():
 
     set_motor_speed_a(0)
@@ -394,7 +385,7 @@ def f(segments):
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
-        print(f"yaw: {yaw}, target yaw: {target_yaw}, correction: { correction_straight}")
+        #print(f"yaw: {yaw}, target yaw: {target_yaw}, correction: { correction_straight}")
         print(f"distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
@@ -441,16 +432,17 @@ while True:
         average_speed=0.5*(straight_time / time_per_straight)
         target_yaw = normalize_angle(bno.euler[2])
         start_time=time.time_ns()
-        # f(1.4)
-        # l()
-        # f(4)
-        # r()
-        # f(6)
-        # r()
+        f(1.4)
+        l()
+        f(4)
+        r()
+        f(6)
+        r()
         f(8)
         set_motor_speed_a(0)
         set_motor_speed_b(0)
         print((time.time_ns()-start_time)/1e9)
+        print(average_speed)
         leda.value(1)  
         ledb.value(1)
         # Debounce delay
