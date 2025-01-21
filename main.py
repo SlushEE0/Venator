@@ -74,16 +74,16 @@ pwm_a.init(freq=5000, duty_ns=5000) # type: ignore
 pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
 
 # PID Parameters
-Kp_straight = 0.07
-Ki_straight = 0.0007
-Kd_straight = 0.29
+Kp_straight = 0.02
+Ki_straight = 0.00015
+Kd_straight = 0.15
 Kp_distance = 0.0000
 Ki_distance = 0.0
 Kd_distance = 0.0
 Kp_turn = 0.01
 Ki_turn = 0.00000
 Kd_turn = 0.5
-Kp_time=1
+Kp_time=0.1
 deadband_distance = 10
 deadband_turn = 0.5
 
@@ -423,8 +423,8 @@ while True:
         leda.value(0)
         ledb.value(0)
         target_time = 45
-        turn_num = 3
-        straight_num = 19.4
+        turn_num = 6
+        straight_num = 23.3
         total_turn_time = turn_time * turn_num
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
@@ -432,13 +432,19 @@ while True:
         average_speed=0.5*(straight_time / time_per_straight)
         target_yaw = normalize_angle(bno.euler[2])
         start_time=time.time_ns()
-        f(1.4)
+        f(1.3)
         l()
         f(4)
         r()
-        f(6)
+        f(4)
         r()
-        f(8)
+        f(4)
+        r()
+        f(2)
+        l()
+        f(4)
+        l()
+        f(4)
         set_motor_speed_a(0)
         set_motor_speed_b(0)
         print((time.time_ns()-start_time)/1e9)
