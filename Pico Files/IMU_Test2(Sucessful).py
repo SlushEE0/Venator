@@ -15,15 +15,17 @@ print("I2C Device found at address:", i2c1.scan(), "\n")
 bno = BNO08X_I2C(i2c1, debug=False)
 print("BNO08x I2C connection: Done\n")
 
-bno.enable_feature(BNO_REPORT_ACCELEROMETER)
-bno.enable_feature(BNO_REPORT_MAGNETOMETER)
-bno.enable_feature(BNO_REPORT_GYROSCOPE)
+
 bno.enable_feature(BNO_REPORT_ROTATION_VECTOR)
 
 print("BNO08x sensors enabling : Done\n")
 
+def normalize_angle(angle):
+    """Normalize an angle to the range [0, 360)."""
+    return (angle+360) % 360
 
 
 while True:
     R, T, P = bno.euler
-    print("Angle: %0.10f" % (P))
+    print(f"Angle: {normalize_angle(P)}")
+
