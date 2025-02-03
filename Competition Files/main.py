@@ -4,7 +4,6 @@ import math
 from array import array
 import rp2
 from bno08x_i2c import *
-
 # Initialize I2C for IMU
 I2C1_SDA = Pin(4)
 I2C1_SCL = Pin(5)
@@ -16,7 +15,6 @@ leda = Pin(1, Pin.OUT)
 ledb = Pin(6, Pin.OUT) 
 leda.value(1)  
 ledb.value(1)
-
 class Encoder:
     def __init__(self, pin_x, pin_y, reverse=False, scale=1):
         self.reverse = reverse
@@ -52,7 +50,6 @@ class Encoder:
         if value is not None:
             self._pos = value
         return self._pos
-
 # Motor A Encoder pins using GPIO 15 and 14
 encoder_a = Encoder(14, 15)
 encoder_b= Encoder(11,10)
@@ -77,15 +74,15 @@ pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
 Kp_straight = 0.02
 Ki_straight = 0.00015
 Kd_straight = 0.15
-Kp_distance = 0.0000
+Kp_distance = 0.002
 Ki_distance = 0.0
-Kd_distance = 0.0
-Kp_turn = 0.01
+Kd_distance = 0.002
+Kp_turn = 0.02
 Ki_turn = 0.00000
 Kd_turn = 0.5
 Kp_time=0.1
-deadband_distance = 80
-deadband_turn = 0.5
+deadband_distance = 50
+deadband_turn = 0.2
 
 # Push button on GPIO 22
 button = Pin(22, Pin.IN, Pin.PULL_UP)
@@ -93,7 +90,7 @@ turn_count=0
 straight_count=0
 turn_time = 2.5 # time for one turn (in seconds)
 straight_time = 1.39  # time for one straight at 50% speed (in seconds)
-min_speed=0.27
+min_speed=0.28
 max_turn_speed=0.29
 MIN_STALL_THRESHOLD = 1
 
@@ -110,9 +107,6 @@ def set_motor_speed_a(speed):
         IN2.value(0)
     elif speed < 0:
         IN1.value(0)
-        IN2.value(1)
-    if speed==0:  # Brake mode
-        IN1.value(1)
         IN2.value(1)
     pwm_a.duty_u16(motor_speed_1)
 
@@ -139,8 +133,8 @@ def calculate_speed(traveled_distance):
         P_time = time_error * Kp_time 
         motor_speed = average_speed - P_time
         return motor_speed
-def l():
 
+def l():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
     global target_yaw
@@ -164,13 +158,13 @@ def l():
         turn_error = target_yaw - yaw
         if abs(turn_error) < deadband_turn:
             break
-        print(f"turn error: {turn_error}, target yaw: {target_yaw}, yaw: {yaw}")
+
         # Turn PID calculations
         P_turn = turn_error * Kp_turn
         I_turn = error_sum_turn * Ki_turn
         D_turn = (turn_error - last_error_turn) * Kd_turn
         correction_turn = P_turn + I_turn  + D_turn
-    
+
     # Calculate motor speeds based on correction
         speed_a = correction_turn
         speed_b = -correction_turn
@@ -193,7 +187,8 @@ def l():
         set_motor_speed_a(speed_a)
         set_motor_speed_b(speed_b)
         last_error_turn = turn_error
-        
+
+        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b},min_speed: {min_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -203,6 +198,7 @@ def l():
                 speed_a = min_speed if speed_a > 0 else -min_speed 
                 speed_b = min_speed if speed_b > 0 else -min_speed 
                 recovery += 1 
+                print(recovery) 
                 if recovery > 10: 
                     temp_speed_a=0.4 if speed_a > 0 else -0.4
                     temp_speed_b=0.4 if speed_b > 0 else -0.4
@@ -219,13 +215,12 @@ def l():
     set_motor_speed_a(0.05)
     set_motor_speed_b(0.05)
     time.sleep(0.2)
-    return target_yaw,min_speed
 
 def r():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
-    global target_yaw
     global turn_count
+    global target_yaw
     global min_speed
     turn_count+=1
     initial_yaw=target_yaw
@@ -246,13 +241,13 @@ def r():
         turn_error = target_yaw - yaw
         if abs(turn_error) < deadband_turn:
             break
-        
+
         # Turn PID calculations
         P_turn = turn_error * Kp_turn
         I_turn = error_sum_turn * Ki_turn
         D_turn = (turn_error - last_error_turn) * Kd_turn
         correction_turn = P_turn
-        
+
     # Calculate motor speeds based on correction
         speed_a = correction_turn
         speed_b = -correction_turn
@@ -279,7 +274,8 @@ def r():
 
         error_sum_turn += turn_error
         last_error_turn = turn_error
-        
+
+        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -288,7 +284,8 @@ def r():
                 min_speed += 0.001 # Increment minimum speed 
                 speed_a = min_speed if speed_a > 0 else -min_speed 
                 speed_b = min_speed if speed_b > 0 else -min_speed 
-                recovery += 1  
+                recovery += 1 
+                print(recovery) 
                 if recovery > 10: 
                     temp_speed_a=0.4 if speed_a > 0 else -0.4
                     temp_speed_b=0.4 if speed_b > 0 else -0.4
@@ -301,11 +298,10 @@ def r():
             stall_counter = 0 
         last_encoder_a_position = speed_a_encoder 
         last_encoder_b_position = speed_b_encoder
-    
+
     set_motor_speed_a(0.05)
     set_motor_speed_b(0.05)
     time.sleep(0.2)
-    return target_yaw,min_speed
 
 def f(segments):
     global straight_count
@@ -373,7 +369,7 @@ def f(segments):
         error_sum_straight += straight_error
         last_error_straight = straight_error
         
-        # print(f"distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
+        print(f"target yaw {target_yaw}, yaw {yaw}, distance traveled: {traveled_distance}, target distance: {encoder_distance}, Speed A: {speed_a}, Speed B: {speed_b},Desired Speed: {motor_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -396,7 +392,7 @@ def f(segments):
         last_encoder_a_position = speed_a_encoder 
         last_encoder_b_position = speed_b_encoder
 
-
+    
     global initial_yaw
     straight_count+=segments
     initial_yaw=target_yaw
@@ -418,10 +414,11 @@ while True:
         global average_speed
         average_speed=0.5*(straight_time / time_per_straight)
         target_yaw = normalize_angle(bno.euler[2])
+        # target_yaw=40
         iyaw=target_yaw
         start_time=time.time_ns()
         # f(0)
-        # r()
+        # l()
         f(1.3)
         l()
         f(4)
