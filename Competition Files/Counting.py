@@ -31,7 +31,6 @@ l()
 f(4)
 l()
 f(4)
-b(3)
 
 print(f"Total distance of straight movements: {total_distance}")
 print(f"Number of turns: {turns}")

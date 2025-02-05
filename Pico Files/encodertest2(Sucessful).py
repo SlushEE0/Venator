@@ -38,7 +38,7 @@ class Encoder:
 
 # Motor A Encoder pins using GPIO 15 and 14
 encoder_a = Encoder(14, 15)
-encoder_b= Encoder(11,10)
+encoder_b= Encoder(10,11)
 
 # Main loop
 while True:
