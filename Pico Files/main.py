@@ -167,25 +167,19 @@ def l():
 
     # Calculate motor speeds based on correction
         speed_a = correction_turn
-        speed_b = -correction_turn
         # Ensure motors stop at the correct target
         if abs(turn_error) < deadband_turn:
             speed_a = 0
-            speed_b = 0
         else:
             # Apply minimum limits to avoid stalling
             if abs(speed_a) > 0 and abs(speed_a) < min_speed:
                 speed_a = min_speed if speed_a > 0 else -min_speed
-            if abs(speed_b) > 0 and abs(speed_b) < min_speed:
-                speed_b = min_speed if speed_b > 0 else -min_speed
 
             # Optionally clamp speeds to max limits
             speed_a = max(min(speed_a, max_turn_speed), -max_turn_speed)
-            speed_b = max(min(speed_b, max_turn_speed), -max_turn_speed)
 
         # Send speeds to motors
         set_motor_speed_a(speed_a)
-        set_motor_speed_b(speed_b)
         last_error_turn = turn_error
 
         print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b},min_speed: {min_speed}")
@@ -417,21 +411,21 @@ while True:
         # target_yaw=40
         iyaw=target_yaw
         start_time=time.time_ns()
-        # f(0)
+        f(0)
+        r()
+        # f(1.3)
         # l()
-        f(1.3)
-        l()
-        f(4)
-        r()
-        f(4)
-        r()
-        f(4)
-        r()
-        f(2)
-        l()
-        f(4)
-        l()
-        f(4)
+        # f(4)
+        # r()
+        # f(4)
+        # r()
+        # f(4)
+        # r()
+        # f(2)
+        # l()
+        # f(4)
+        # l()
+        # f(4)
         set_motor_speed_a(0)
         set_motor_speed_b(0)
         print(f"time:{(time.time_ns()-start_time)/1e9}")
