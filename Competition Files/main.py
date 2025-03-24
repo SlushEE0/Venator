@@ -81,6 +81,8 @@ straight_time = 0.93  # time for one straight at 50% speed (in seconds)
 min_speed=0.28
 max_turn_speed=0.32
 MIN_STALL_THRESHOLD = 1
+leda = Pin(1, Pin.OUT) 
+ledb = Pin(6, Pin.OUT) 
 
 
 
@@ -108,38 +110,26 @@ def set_motor_speed_b(speed):
         IN4.value(1)
     pwm_b.duty_u16(motor_speed_2)
 
-def calculate_speed(traveled_distance, distance_left):
+def calculate_speed(traveled_distance,distance_left):
     global motor_speed
-    total_distance=distance_left+traveled_distance
-    motor_speed = 0
-    time_elapsed = (time.time_ns() - start_time) / 1e9
-    time_at_destination = (turn_count * turn_time) + ((straight_count + traveled_distance) * time_per_straight)
-    time_error = time_at_destination - time_elapsed
-
-    # Define the acceleration and deceleration distances
-    accel_distance = total_distance * 0.3  # 30% of the total distance for acceleration
-    decel_distance = total_distance * 0.3  # 30% of the total distance for deceleration
-
-    if traveled_distance < accel_distance:
-        # Acceleration phase (increases speed)
-        motor_speed = min(average_speed, (traveled_distance / accel_distance) * average_speed)
-    elif traveled_distance > (total_distance - decel_distance):
-        # Deceleration phase (decreases speed)
-        motor_speed = max(0, (distance_left / decel_distance) * average_speed)
-    else:
-        # Constant speed phase
-        motor_speed = average_speed
-
-    # Apply time-based correction using proportional control
-    P_time = time_error * Kp_time
-    motor_speed = max(0, min(average_speed, motor_speed - P_time))  # Ensure speed stays within limits
-
-    return motor_speed
+    motor_speed=0
+    time_elapsed=(time.time_ns()-start_time)/1e9
+    time_at_destination=(turn_count*turn_time)+((straight_count+traveled_distance)*time_per_straight)
+    time_error= time_at_destination-time_elapsed
+    if abs(traveled_distance)<=0:
+        motor_speed=average_speed
+        return motor_speed
+    else:      
+        P_time = time_error * Kp_time 
+        motor_speed = average_speed - P_time
+        return motor_speed
 
 
 def l():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
+    leda.value(0)  
+    ledb.value(1)
     global turn_count
     global min_speed
     global left
@@ -164,16 +154,6 @@ def l():
         turn_error=encoder_a_ticks-encoder_a_dist
         P_straight = turn_error * Kp_turn
         correction_turn = P_straight
-        speed_a = correction_turn
-                # Apply minimum limits to avoid stalling
-        if abs(speed_a) > 0 and abs(speed_a) < min_speed:
-            speed_a = min_speed if speed_a > 0 else -min_speed
-
-        # Optionally clamp speeds to max limits
-        speed_a = max(min(speed_a, max_turn_speed), -max_turn_speed)
-        set_motor_speed_a(speed_a)
-        set_motor_speed_b(0)
-        print(speed_a)
         #stall detection
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
@@ -218,6 +198,8 @@ def l():
 def r():
     set_motor_speed_a(0)
     set_motor_speed_b(0)
+    leda.value(1)  
+    ledb.value(0)
     global turn_count
     global min_speed
     global right
@@ -298,6 +280,8 @@ def f(segments):
     global dist,straight_count, min_speed, deadband_distance, Kp_straight, Ki_straight, Kd_straight, motor_speed
     error_sum_straight = 0
     last_error_straight = 0
+    leda.value(0)  
+    ledb.value(0)
     encoder_a = Encoder(14, 15)
     encoder_b= Encoder(10,11)
     encoder_a.reset()
@@ -332,7 +316,7 @@ def f(segments):
         # Calculate motor speeds based on correction
         speed_a = motor_speed - correction_straight
         speed_b = motor_speed + correction_straight
-        speed_b = -2.13414 * speed_b ** 3 + 3.74527 * speed_b ** 2 - 1.21031 * speed_b + 0.429783
+        # speed_b = -2.13414 * speed_b ** 3 + 3.74527 * speed_b ** 2 - 1.21031 * speed_b + 0.429783
 
         # Apply minimum limits to avoid stalling
         if abs(speed_a) > 0 and abs(speed_a) < min_speed:
@@ -401,6 +385,8 @@ def b(segments):
     global dist,straight_count, min_speed, deadband_distance, Kp_straight, Ki_straight, Kd_straight, motor_speed
     error_sum_straight = 0
     last_error_straight = 0
+    leda.value(0)  
+    ledb.value(0)
     encoder_a = Encoder(15, 14)
     encoder_b= Encoder(11,10)
     encoder_a.reset()
@@ -434,7 +420,7 @@ def b(segments):
         correction_straight = P_straight + I_straight + D_straight
         speed_a = motor_speed - correction_straight
         speed_b = motor_speed + correction_straight
-        speed_b = -2.13414 * speed_b ** 3 + 3.74527 * speed_b ** 2 - 1.21031 * speed_b + 0.429783
+        # speed_b = -2.13414 * speed_b ** 3 + 3.74527 * speed_b ** 2 - 1.21031 * speed_b + 0.429783
 
         # Apply minimum limits to avoid stalling
         if abs(speed_a) > 0 and abs(speed_a) < min_speed:
@@ -499,8 +485,6 @@ def b(segments):
 
 
     
-leda = Pin(1, Pin.OUT) 
-ledb = Pin(6, Pin.OUT) 
 leda.value(1)  
 ledb.value(1)
 # Main loop to check for button press and execute commands
@@ -509,48 +493,19 @@ while True:
         print("Button pressed, starting sequence...")
         leda.value(0)
         ledb.value(0)
-        target_time = 71
-        turn_num = 12
-        straight_num = 51.3
+        target_time = 72
+        turn_num = 4
+        straight_num = 21.3
         left=30
-        right=30
-        dist=23
+        right=30.6
+        dist=25
         total_turn_time = turn_time * turn_num
         remaining_time = target_time - total_turn_time
         time_per_straight = remaining_time / straight_num
         global average_speed
         average_speed=0.5*(straight_time / time_per_straight)
         start_time=time.time_ns()
-        f(1.3)
-        r()
-        f(6)
-        b(2)
         l()
-        f(4)
-        r()
-        f(2)
-        b(2)
-        l()
-        f(4)
-        r()
-        f(2)
-        r()
-        f(2)
-        b(2)
-        r()
-        f(4)
-        l()
-        f(6)
-        r()
-        f(2)
-        b(2)
-        r()
-        f(6)
-        l()
-        f(2)
-        l()
-        f(2)
-
         print(f"time:{(time.time_ns()-start_time)/1e9}")
         print(average_speed)
         set_motor_speed_a(0)

@@ -5,12 +5,15 @@ from array import array
 import rp2
 from bno08x_i2c import *
 # Initialize I2C for IMU
-I2C1_SDA = Pin(4)
-I2C1_SCL = Pin(5)
-i2c1 = I2C(0, scl=I2C1_SCL, sda=I2C1_SDA, freq=400000, timeout=200000)
+I2C1_SDA = Pin(2)
+I2C1_SCL = Pin(3)
+i2c1 = I2C(1, scl=I2C1_SCL, sda=I2C1_SDA, freq=400000, timeout=200000)
 # Initialize BNO08X sensor
 bno = BNO08X_I2C(i2c1, debug=False)
 bno.enable_feature(BNO_REPORT_ROTATION_VECTOR)
+bno.hard_reset
+bno.calibration()
+time.sleep(5)
 leda = Pin(1, Pin.OUT) 
 ledb = Pin(6, Pin.OUT) 
 leda.value(1)  
@@ -70,30 +73,30 @@ pwm_b = PWM(ENB)
 pwm_a.init(freq=5000, duty_ns=5000) # type: ignore
 pwm_b.init(freq=5000, duty_ns=5000) # type: ignore
 
-# PID Parameters
-Kp_straight = 0.02
-Ki_straight = 0.00015
-Kd_straight = 0.15
+Kp_straight = 0.01
+Ki_straight = 0.0000
+Kd_straight = 0.00
 Kp_distance = 0.002
 Ki_distance = 0.0
 Kd_distance = 0.002
-Kp_turn = 0.02
+Kp_turn = 0.005
 Ki_turn = 0.00000
-Kd_turn = 0.5
+Kd_turn = 0.0
 Kp_time=0.1
-deadband_distance = 80
-deadband_turn = 0.2
+deadband_distance = 50
+deadband_turn = 0.7
 
 # Push button on GPIO 22
 button = Pin(22, Pin.IN, Pin.PULL_UP)
 turn_count=0
 straight_count=0
-turn_time = 2.5 # time for one turn (in seconds)
-straight_time = 1.39  # time for one straight at 50% speed (in seconds)
+turn_time = 2.6 # time for one turn (in seconds)
+straight_time = 0.93  # time for one straight at 50% speed (in seconds)
 min_speed=0.28
-max_turn_speed=0.29
+max_turn_speed=0.32
 MIN_STALL_THRESHOLD = 1
-
+leda = Pin(1, Pin.OUT) 
+ledb = Pin(6, Pin.OUT) 
 
 
 def normalize_angle(angle):
@@ -182,7 +185,7 @@ def l():
         set_motor_speed_a(speed_a)
         last_error_turn = turn_error
 
-        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b},min_speed: {min_speed}")
+        # print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b},min_speed: {min_speed}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -269,7 +272,7 @@ def r():
         error_sum_turn += turn_error
         last_error_turn = turn_error
 
-        print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
+        # print(f"Yaw: {yaw}, Target Yaw: {target_yaw}, Speed A: {speed_a}, Speed B: {speed_b}")
         speed_a_encoder = encoder_a.position() 
         speed_b_encoder = encoder_b.position() 
         if abs(speed_a_encoder - last_encoder_a_position) < MIN_STALL_THRESHOLD and abs(speed_b_encoder - last_encoder_b_position) < MIN_STALL_THRESHOLD: 	
@@ -410,6 +413,7 @@ while True:
         target_yaw = normalize_angle(bno.euler[2])
         # target_yaw=40
         iyaw=target_yaw
+        print(iyaw)
         start_time=time.time_ns()
         f(0)
         r()
